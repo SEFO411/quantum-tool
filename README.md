@@ -2,7 +2,7 @@
 
 ## 📖 Tanıtım
 
-**Quantum Tool**, otomatik oyun ve uygulama kontrol sistemi sunmaktadır. Python tarafından geliştirilmiş bu araç, kullanıcıya farklı hız seviyelerinde otopilot modları ve dahili Python IDE sunmaktadır.
+**Quantum Tool**, otomatik oyun ve uygulama kontrol sistemi sunmaktadır. SF-Studios tarafından Python ile geliştirilmiş bu araç, kullanıcıya farklı hız seviyelerinde otopilot modları ve dahili Python IDE sunmaktadır.
 
 ---
 
