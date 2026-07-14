@@ -1,0 +1,11 @@
+{
+    "template_name": "Apex Legend Ultra Espor Makrosu",
+    "author": "QuantumBuilder v2",
+    "target_mode": "Espor",
+    "custom_delays": {
+        "Noob": 1.2,
+        "Normal": 0.4,
+        "Espor": 0.02
+    },
+    "custom_sensitivity": 1.8
+}
