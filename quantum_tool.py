@@ -8,20 +8,21 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
-# Ekran taraması için yeni kütüphaneler
+# Yeni ve hızlı ekran yakalama kütüphaneleri
 import cv2
 import numpy as np
+import mss
 
 console = Console()
 BASE_DIR = Path(sys.argv[0]).resolve().parent
 
-# PyAutoGUI güvenlik kilidini esnetelim ve hızlandıralım
+# Gecikmeleri tamamen sıfırlıyoruz (Maksimum Hız)
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0  
 
 class QuantumFinalSuite:
     def __init__(self):
-        self.version = "1.1.0-SILENT"
+        self.version = "1.2.0-TURBO"
         self.is_running = True
         
         self.config_file = BASE_DIR / "quantum_config.json"
@@ -32,8 +33,6 @@ class QuantumFinalSuite:
         self.target_mode = None  
         
         self.config = self.load_config()
-        
-        # Çift Tıklama Kontrolü
         self.check_file_trigger()
 
     def check_file_trigger(self):
@@ -73,76 +72,74 @@ class QuantumFinalSuite:
 
     def autopilot_logic(self, mode):
         try:
-            delays = self.config.get("autopilot_delays", {"Noob": 1.2, "Normal": 0.4, "Espor": 0.05})
-            delay = delays.get(mode, 0.05) # Gecikmeyi aimbot için biraz düşürdük
+            # Aimbot modu seçildiğinde arkadaki uyku süresini çok küçük tutuyoruz
+            delays = self.config.get("autopilot_delays", {"Noob": 0.1, "Normal": 0.01, "Espor": 0.001})
+            delay = delays.get(mode, 0.001)
             sensitivity = self.config.get("mouse_sensitivity", 1.0)
             
             os.system('cls' if os.name == 'nt' else 'clear')
             status_panel = (
                 f"[bold gold1]ŞABLON:[/bold gold1] {self.active_template_name} (Yazar: {self.active_author})\n"
-                f"[bold red]MOD:[/bold red] {mode.upper()} OPERASYONU\n"
-                f"  • Gecikme: {delay}s\n"
+                f"[bold red]MOD:[/bold red] {mode.upper()} OPERASYONU (TÜM EKRAN)\n"
                 f"  • Hassasiyet: {sensitivity}x\n\n"
-                f"[green]KIRMIZI hedef taraması aktif. Durdurmak için CTRL+C yapın.[/green]"
+                f"[green]Ultra Hızlı TÜM EKRAN Kırmızı hedef taraması aktif.[/green]\n"
+                f"[yellow]Kapatmak için CMD ekranına gelip CTRL+C yapın.[/yellow]"
             )
-            console.print(Panel(status_panel, title="💠 AIM ACTIVE", border_style="red"))
+            console.print(Panel(status_panel, title="💠 TURBO AIM ACTIVE", border_style="red"))
             
-            # Ekran çözünürlüğünü al
-            screen_width, screen_height = pyautogui.size()
-            
-            # Ekranın tam ortasında tarama yapacağımız alanın boyutu (Performans için tüm ekranı değil ortayı tarıyoruz)
-            box_width, box_height = 400, 400
-            left = (screen_width - box_width) // 2
-            top = (screen_height - box_height) // 2
-
-            # Algılanacak Kırmızı Renk Sınırları (HSV Renk Uzayında)
-            # Rakiplerin can barı veya kırmızı vurgusu için uygun tonlar
-            lower_red1 = np.array([0, 150, 110])
+            # Genişletilmiş Oyun İçi Kırmızı Renk Sınırları (HSV)
+            lower_red1 = np.array([0, 120, 70])
             upper_red1 = np.array([10, 255, 255])
-            lower_red2 = np.array([170, 150, 110])
+            lower_red2 = np.array([165, 120, 70])
             upper_red2 = np.array([180, 255, 255])
             
-            while True:
-                # Belirlenen bölgenin ekran görüntüsünü al
-                screenshot = pyautogui.screenshot(region=(left, top, box_width, box_height))
-                frame = np.array(screenshot)
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            # Ultra hızlı ekran yakalayıcıyı başlat (Tüm Ekran)
+            with mss.mss() as sct:
+                # 1 numaralı ana monitörün tamamını hedefler
+                monitor = sct.monitors[1] 
                 
-                # Kırmızı maskeleme yap (Kırmızı renk spektrumu iki bölgeye yayıldığı için birleştiriyoruz)
-                mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-                mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-                mask = mask1 + mask2
-                
-                # Kırmızı piksellerin koordinatlarını bul
-                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                
-                if contours:
-                    # En büyük kırmızı alanı (en yakın rakibi) seç
-                    largest_contour = max(contours, key=cv2.contourArea)
+                while True:
+                    # Tüm ekranın görüntüsünü nanosaniyeler içinde al
+                    screenshot = sct.grab(monitor)
                     
-                    # Eğer tespit edilen alan çok küçük değilse (gürültüleri engellemek için)
-                    if cv2.contourArea(largest_contour) > 15: 
-                        # Hedefin merkez noktasını hesapla
-                        M = cv2.moments(largest_contour)
-                        if M["m00"] != 0:
-                            cX = int(M["m10"] / M["m00"])
-                            cY = int(M["m01"] / M["m00"])
-                            
-                            # Tarama alanındaki koordinatı, gerçek ekran koordinatına dönüştür
-                            target_x = left + cX
-                            target_y = top + cY
-                            
-                            # Fareyi yumuşakça (veya anında) hedefe kaydır
-                            current_x, current_y = pyautogui.position()
-                            # Hassasiyete göre yeni konumu hesapla
-                            move_x = int(current_x + (target_x - current_x) * sensitivity)
-                            move_y = int(current_y + (target_y - current_y) * sensitivity)
-                            
-                            pyautogui.moveTo(move_x, move_y)
-                            
-                time.sleep(delay)
-                
+                    # Görüntüyü OpenCV formatına çevir
+                    frame = np.array(screenshot)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+                    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                    
+                    # Kırmızı maskeleme yap
+                    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+                    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+                    mask = mask1 + mask2
+                    
+                    # Kırmızı piksellerin konturlarını (bölgelerini) bul
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    
+                    if contours:
+                        # Ekrandaki en büyük kırmızı alanı seç (Genelde en yakın rakip olur)
+                        largest_contour = max(contours, key=cv2.contourArea)
+                        
+                        # Çok küçük pikselleri (efektleri, mermileri) ele, sadece belirgin hedeflere git (Alan > 25)
+                        if cv2.contourArea(largest_contour) > 25: 
+                            M = cv2.moments(largest_contour)
+                            if M["m00"] != 0:
+                                # Hedefin merkez koordinatları
+                                target_x = int(M["m10"] / M["m00"])
+                                target_y = int(M["m01"] / M["m00"])
+                                
+                                # Mevcut fare konumunu al
+                                current_x, current_y = pyautogui.position()
+                                
+                                # Hassasiyet (Sensitivity) çarpanına göre yeni konumu hesapla
+                                move_x = int(current_x + (target_x - current_x) * sensitivity)
+                                move_y = int(current_y + (target_y - current_y) * sensitivity)
+                                
+                                # Fareyi hedefe kilitle
+                                pyautogui.moveTo(move_x, move_y)
+                                
+                    if delay > 0:
+                        time.sleep(delay)
+                        
         except KeyboardInterrupt:
             console.print(f"\n[yellow][!] Operasyon durduruldu.[/yellow]")
             time.sleep(1)
@@ -158,7 +155,7 @@ class QuantumFinalSuite:
             menu_text = (
                 "[1] Noob Modu (Yavaş)\n"
                 "[2] Normal Mod (Dengeli)\n"
-                "[3] E-Spor Modu (Hızlı)\n"
+                "[3] E-Spor Modu (Turbo Hızlı)\n"
                 "[Q] Çıkış"
             )
             console.print(Panel(menu_text, title="QUANTUM SUITE", border_style="cyan"))
@@ -175,7 +172,7 @@ class QuantumFinalSuite:
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f: return json.load(f)
             except: pass
-        return {"autopilot_delays": {"Noob": 1.2, "Normal": 0.4, "Espor": 0.05}, "mouse_sensitivity": 1.0}
+        return {"autopilot_delays": {"Noob": 0.1, "Normal": 0.01, "Espor": 0.001}, "mouse_sensitivity": 1.0}
 
 if __name__ == "__main__":
     app = QuantumFinalSuite()
