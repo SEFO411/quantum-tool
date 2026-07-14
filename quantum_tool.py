@@ -8,8 +8,16 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 
+# Ekran taraması için yeni kütüphaneler
+import cv2
+import numpy as np
+
 console = Console()
 BASE_DIR = Path(sys.argv[0]).resolve().parent
+
+# PyAutoGUI güvenlik kilidini esnetelim ve hızlandıralım
+pyautogui.FAILSAFE = False
+pyautogui.PAUSE = 0  
 
 class QuantumFinalSuite:
     def __init__(self):
@@ -66,7 +74,7 @@ class QuantumFinalSuite:
     def autopilot_logic(self, mode):
         try:
             delays = self.config.get("autopilot_delays", {"Noob": 1.2, "Normal": 0.4, "Espor": 0.05})
-            delay = delays.get(mode, 0.4)
+            delay = delays.get(mode, 0.05) # Gecikmeyi aimbot için biraz düşürdük
             sensitivity = self.config.get("mouse_sensitivity", 1.0)
             
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -75,12 +83,64 @@ class QuantumFinalSuite:
                 f"[bold red]MOD:[/bold red] {mode.upper()} OPERASYONU\n"
                 f"  • Gecikme: {delay}s\n"
                 f"  • Hassasiyet: {sensitivity}x\n\n"
-                f"[green]Sistem sessiz modda devrede. Durdurmak için CTRL+C yapın.[/green]"
+                f"[green]KIRMIZI hedef taraması aktif. Durdurmak için CTRL+C yapın.[/green]"
             )
-            console.print(Panel(status_panel, title="💠 CORE ACTIVE", border_style="magenta"))
+            console.print(Panel(status_panel, title="💠 AIM ACTIVE", border_style="red"))
+            
+            # Ekran çözünürlüğünü al
+            screen_width, screen_height = pyautogui.size()
+            
+            # Ekranın tam ortasında tarama yapacağımız alanın boyutu (Performans için tüm ekranı değil ortayı tarıyoruz)
+            box_width, box_height = 400, 400
+            left = (screen_width - box_width) // 2
+            top = (screen_height - box_height) // 2
+
+            # Algılanacak Kırmızı Renk Sınırları (HSV Renk Uzayında)
+            # Rakiplerin can barı veya kırmızı vurgusu için uygun tonlar
+            lower_red1 = np.array([0, 150, 110])
+            upper_red1 = np.array([10, 255, 255])
+            lower_red2 = np.array([170, 150, 110])
+            upper_red2 = np.array([180, 255, 255])
             
             while True:
-                x, y = pyautogui.position() 
+                # Belirlenen bölgenin ekran görüntüsünü al
+                screenshot = pyautogui.screenshot(region=(left, top, box_width, box_height))
+                frame = np.array(screenshot)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                
+                # Kırmızı maskeleme yap (Kırmızı renk spektrumu iki bölgeye yayıldığı için birleştiriyoruz)
+                mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+                mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+                mask = mask1 + mask2
+                
+                # Kırmızı piksellerin koordinatlarını bul
+                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                
+                if contours:
+                    # En büyük kırmızı alanı (en yakın rakibi) seç
+                    largest_contour = max(contours, key=cv2.contourArea)
+                    
+                    # Eğer tespit edilen alan çok küçük değilse (gürültüleri engellemek için)
+                    if cv2.contourArea(largest_contour) > 15: 
+                        # Hedefin merkez noktasını hesapla
+                        M = cv2.moments(largest_contour)
+                        if M["m00"] != 0:
+                            cX = int(M["m10"] / M["m00"])
+                            cY = int(M["m01"] / M["m00"])
+                            
+                            # Tarama alanındaki koordinatı, gerçek ekran koordinatına dönüştür
+                            target_x = left + cX
+                            target_y = top + cY
+                            
+                            # Fareyi yumuşakça (veya anında) hedefe kaydır
+                            current_x, current_y = pyautogui.position()
+                            # Hassasiyete göre yeni konumu hesapla
+                            move_x = int(current_x + (target_x - current_x) * sensitivity)
+                            move_y = int(current_y + (target_y - current_y) * sensitivity)
+                            
+                            pyautogui.moveTo(move_x, move_y)
+                            
                 time.sleep(delay)
                 
         except KeyboardInterrupt:
